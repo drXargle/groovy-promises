@@ -1,0 +1,12 @@
+= Groovy Promises
+Richard Vowles
+
+== Introduction
+This library is modeled on the basic requirements of the Javascript promises library.
+
+I wanted to separate Future's and Promises as for me Promises provide an elegant method of dealing with async code.
+At the moment I am just working my way  through the ideas, its not concrete.
+
+== Using the Promises
+
+Check out the Tests for examples of this.
