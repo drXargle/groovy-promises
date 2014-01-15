@@ -35,6 +35,8 @@ class Promise {
 	List<Then> thens = new Vector<Then>()
 	List<Done> dones = new Vector<Done>()
 
+	private Closure promiseClosure
+
 	protected void reject(def error) {
 		this.resolvedSet = false
 		this.error = error
@@ -51,18 +53,57 @@ class Promise {
 		processQueue()
 	}
 
-	public Promise(Closure promiseClosure) {
+	static class DeferredPromiseSignal {
+	}
+
+	static ThreadLocal<DeferredPromiseSignal> signalDeferredPromises = new ThreadLocal<>()
+
+	/**
+	 * The purpose of this is to prevent the Promise's closure from being called. This means an external entity
+	 * can control under what threading mechanism or execution mechanism a Promise occurs and the method itself
+	 * doesn't have to worry.
+	 *
+	 * It seems terribly inelegant.
+	 *
+	 * @param c
+	 * @return
+	 */
+	public static deferredPromise(Closure c) {
 		try {
-			if (promiseClosure.maximumNumberOfParameters == 0) {
-				promiseClosure.delegate = this
-				promiseClosure()
-			} else if (promiseClosure.maximumNumberOfParameters == 1) {
-				promiseClosure.call(this.&resolve)
-			} else {
-				promiseClosure.call(this.&resolve, this.&reject)
+			signalDeferredPromises.set(new DeferredPromiseSignal())
+
+			c.call()
+		} finally {
+			signalDeferredPromises.remove()
+		}
+	}
+
+	public void executePromiseClosure() {
+		if (promiseClosure) {
+			try {
+				if (promiseClosure.maximumNumberOfParameters == 0) {
+					promiseClosure.delegate = this
+					promiseClosure()
+				} else if (promiseClosure.maximumNumberOfParameters == 1) {
+					promiseClosure.call(this.&resolve)
+				} else {
+					promiseClosure.call(this.&resolve, this.&reject)
+				}
+			} catch (Exception ex) {
+				reject(ex)
 			}
-		} catch (Exception ex) {
-			reject(ex)
+
+			promiseClosure = null
+		}
+	}
+
+
+
+	public Promise(Closure promiseClosure) {
+		this.promiseClosure = promiseClosure
+
+		if (signalDeferredPromises.get() == null) {
+			executePromiseClosure()
 		}
 	}
 
