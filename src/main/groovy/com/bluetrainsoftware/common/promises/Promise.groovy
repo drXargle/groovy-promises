@@ -35,8 +35,6 @@ class Promise {
 	List<Then> thens = new Vector<Then>()
 	List<Done> dones = new Vector<Done>()
 
-	private Closure promiseClosure
-
 	protected void reject(def error) {
 		this.resolvedSet = false
 		this.error = error
@@ -47,16 +45,22 @@ class Promise {
 	}
 
 	protected void resolve(def resolved) {
-		this.resolved = resolved
-		this.resolvedSet = true
+		if (resolved instanceof Promise) {
+			returnedValueIsPromiseSoSignalCallback(resolved as Promise)
+		} else {
+			this.resolved = resolved
+			this.resolvedSet = true
 
-		processQueue()
+			processQueue()
+		}
 	}
 
 	static class DeferredPromiseSignal {
 	}
 
 	static ThreadLocal<DeferredPromiseSignal> signalDeferredPromises = new ThreadLocal<>()
+
+	private Closure promiseClosure
 
 	/**
 	 * The purpose of this is to prevent the Promise's closure from being called. This means an external entity
@@ -68,11 +72,11 @@ class Promise {
 	 * @param c
 	 * @return
 	 */
-	public static deferredPromise(Closure c) {
+	public static Promise deferredPromise(Closure<Promise> c) {
 		try {
 			signalDeferredPromises.set(new DeferredPromiseSignal())
 
-			c.call()
+			return c.call()
 		} finally {
 			signalDeferredPromises.remove()
 		}
@@ -107,6 +111,14 @@ class Promise {
 		}
 	}
 
+	private void returnedValueIsPromiseSoSignalCallback(Promise otherPromise) {
+		// this adds
+		otherPromise.done( this.&resolve, this.&reject )
+
+		resolvedSet = false
+		errorSet = false
+	}
+
 	/**
 	 * calls the appropriate closure with optional parameters of:
 	 * value, resolveMethod, rejectMethod
@@ -132,9 +144,7 @@ class Promise {
 			 * get the final value in the chain, and re-start out chain. We stop our chain until this happens
 			 */
 			if (value instanceof Promise) {
-				(value as Promise).done( this.&resolve, this.&reject )
-				resolvedSet = false
-				errorSet = false
+				returnedValueIsPromiseSoSignalCallback(value as Promise)
 			}
 		} catch ( Exception ex ) {
 			reject(ex)
@@ -218,5 +228,9 @@ class Promise {
 		}
 
 		return this
+	}
+
+	boolean isComplete() {
+		return promiseClosure == null
 	}
 }

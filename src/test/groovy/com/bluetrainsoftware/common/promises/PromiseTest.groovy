@@ -56,6 +56,32 @@ class PromiseTest {
 	}
 
 	@Test
+	public void promiseReturnsPromise() {
+		String thread = null, inner = null
+
+		Promise p = Promise.deferredPromise {
+			return new Promise({
+				thread = Thread.currentThread().name
+
+				resolve(new Promise({
+					inner = Thread.currentThread().name
+				}))
+			})
+		}
+
+		Thread t = new Thread({
+			p.executePromiseClosure()
+		})
+
+		t.start()
+		Thread.sleep(500)
+
+		println "threads were ${thread} / ${inner}"
+
+		assert thread != null && thread == inner
+	}
+
+	@Test
 	public void thenReturnsPromise() {
 		Closure resolveIt = null
 		int count = 0
