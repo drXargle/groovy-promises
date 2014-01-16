@@ -34,6 +34,7 @@ class Promise {
 	// these are synchronized
 	List<Then> thens = new Vector<Then>()
 	List<Done> dones = new Vector<Done>()
+	List<Closure> completeds = new Vector<>()
 
 	protected void reject(def error) {
 		this.resolvedSet = false
@@ -182,6 +183,10 @@ class Promise {
 				}
 			}
 		} finally {
+			while (completeds.size() > 0) {
+				completeds.remove(0).call()
+			}
+
 			processingQueue = false
 		}
 	}
@@ -222,6 +227,23 @@ class Promise {
 
 	Promise error(Closure failure) {
 		thens.add(new Then(error: failure))
+
+		if (resolvedSet || errorSet) {
+			processQueue()
+		}
+
+		return this
+	}
+
+	/**
+	 * An optional closure that indicates that the promise is complete and all chained requests are
+	 * done
+	 *
+	 * @param completed
+	 * @return this
+	 */
+	Promise completed(Closure completed) {
+		completeds.add(completed)
 
 		if (resolvedSet || errorSet) {
 			processQueue()
